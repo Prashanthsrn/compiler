@@ -1,39 +1,40 @@
 import re
 
-class Lexer:
-    def __init__(self, code):
-        self.code = code
-        self.tokens = []
-        self.pos = 0 
-        self.keywords = {'if', 'else', 'int', 'float'}  
-    
-    def tokenize(self):
-        patterns = [
-            ('KEYWORD', r'\b(if|else|int|float)\b'),
-            ('IDENTIFIER', r'\b[a-zA-Z_][a-zA-Z0-9_]*\b'),
-            ('NUMBER', r'\b\d+\b'),
-            ('OPERATOR', r'[+\-*/=]'),
-            ('COMPARISON', r'(==|!=|<=|>=|<|>)'),  
-            ('SEMICOLON', r';'),
-            ('OPEN_PAREN', r'\('),
-            ('CLOSE_PAREN', r'\)'),
-            ('OPEN_BRACE', r'\{'),
-            ('CLOSE_BRACE', r'\}'),
-            ('WHITESPACE', r'\s+')
-        ]
+# Token specification
+TOKENS = [
+    ('NUMBER', r'\d+(\.\d*)?'),  
+    ('ID', r'[A-Za-z]+'),  
+    ('IF', r'\bif\b'),  
+    ('ELSE', r'\belse\b'),  
+    ('EQ', r'=='),  
+    ('ASSIGN', r'='),  
+    ('OP', r'[+\-*/]'),  
+    ('LPAREN', r'\('),  
+    ('RPAREN', r'\)'),  
+    ('LBRACE', r'\{'),  
+    ('RBRACE', r'\}'), 
+    ('SEMICOLON', r';'),  
+    ('WS', r'\s+'),  
+]
 
-        # Process the code by matching patterns using regex
-        while self.pos < len(self.code):
-            match = None
-            for token_type, pattern in patterns:
-                regex = re.compile(pattern)
-                match = regex.match(self.code, self.pos)
-                if match:
-                    token_value = match.group(0)
-                    if token_type != 'WHITESPACE':  
-                        self.tokens.append((token_type, token_value))
-                    self.pos = match.end(0)
-                    break
-            if not match:
-                raise SyntaxError(f"Illegal character at position {self.pos}: {self.code[self.pos]}")
-        return self.tokens
+# Lexical analyzer
+def lex(characters):
+    pos = 0
+    tokens = []
+    while pos < len(characters):
+        match = None
+        for token_spec in TOKENS:
+            pattern, regex = token_spec
+            regex = re.compile(regex)
+            match = regex.match(characters, pos)
+            if match:
+                text = match.group(0)
+                if pattern != 'WS':  # Ignore whitespace
+                    tokens.append((pattern, text))
+                pos = match.end(0)
+                break
+        if not match:
+            raise RuntimeError(f"Illegal character: {characters[pos]}")
+    return tokens
+
+
