@@ -14,19 +14,6 @@ A basic compiler implementation in Python that handles arithmetic operations, va
   - If-else statements
   - Comparison operators (==, >, <)
 
-## Project Structure
-
-```
-compiler/
-├── lexer.py           # Tokenization of input
-├── parser.py          # Syntax analysis and AST generation
-├── semantic_analyzer.py # Semantic analysis
-├── codegen.py         # Intermediate code generation
-├── error.py           # Error handling
-├── main.py           # Main compiler entry point
-└── README.md         # Project documentation
-```
-
 ## Usage
 
 1. Create an input file (e.g., `input.txt`) with your source code
