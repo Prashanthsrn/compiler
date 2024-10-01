@@ -34,3 +34,12 @@ class CodeGenerator:
         with open(filename, 'w') as f:
             for line in self.target_code:
                 f.write(line + '\n')
+class CodeGenerator:
+    def __init__(self):
+        self.instructions = []
+
+    def generate(self, intermediate_code):
+        print("Generated code:")
+        for instruction in intermediate_code:
+            print(instruction)
+        return self.instructions
