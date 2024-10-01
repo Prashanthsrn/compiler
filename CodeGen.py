@@ -1,45 +1,64 @@
-class CodeGenerator:
-    def __init__(self, ir_code):
-        self.ir_code = ir_code
-        self.target_code = []
+class CodeGen:
+    def __init__(self, ir):
+        self.ir = ir
+        self.code = []
+        self.indentation = 0
+        self.op_map = {
+            'plus': '+',
+            'minus': '-',
+            'multiply': '*',
+            'divide': '/',
+            'lt': '<',
+            'gt': '>',
+            'lte': '<=',
+            'gte': '>=',
+            'equals': '=='
+        }
 
-    def generate_code(self):
-        for ir in self.ir_code:
-            if ir.startswith('IF_FALSE'):
-                self.handle_if_false(ir)
-            elif ir.startswith('GOTO'):
-                self.target_code.append(f'{ir}')
-            elif ir.endswith(':'):
-                self.target_code.append(f'{ir}')
+    def generate(self):
+        for instruction in self.ir:
+            parts = instruction.split()
+            if '=' in instruction:
+                self.handle_assignment(parts)
+            elif instruction.startswith('if'):
+                self.handle_if(parts)
+            elif instruction.startswith('goto'):
+                self.handle_goto(parts)
+            elif instruction.endswith(':'):
+                self.handle_label(instruction)
             else:
-                self.target_code.append(self.handle_assignment(ir))
+                self.code.append(self.indent() + instruction)
 
-        return self.target_code
+        return '\n'.join(self.code)
 
-    def handle_if_false(self, ir):
-        parts = ir.split(' ')
-        condition_var = parts[1]
-        operator = parts[2]
-        comparison_value = parts[3]
-        goto_label = parts[-1]
+    def handle_assignment(self, parts):
+        target = parts[0]
+        if len(parts) > 3:  # Binary operation
+            left = parts[2]
+            op = self.op_map.get(parts[3], parts[3])
+            right = parts[4]
+            self.code.append(self.indent() + f"{target} = {left} {op} {right}")
+        else:  # Simple assignment
+            value = ' '.join(parts[2:])
+            self.code.append(self.indent() + f"{target} = {value}")
 
-        # Translate to target language
-        self.target_code.append(f'IF {condition_var} {operator} {comparison_value} GOTO {goto_label}')
+    def handle_if(self, parts):
+        condition = ' '.join(parts[2:-2])
+        # Replace operators in condition
+        for op_name, op_symbol in self.op_map.items():
+            condition = condition.replace(op_name, op_symbol)
+        label = parts[-1]
+        self.code.append(self.indent() + f"if not ({condition}):")
+        self.indentation += 1
+        self.code.append(self.indent() + f"    goto {label}")
+        self.indentation -= 1
 
-    # Assignment stays the same, e.g., x = 20
-    def handle_assignment(self, ir):
-        return ir  
+    def handle_goto(self, parts):
+        label = parts[1]
+        self.code.append(self.indent() + f"# goto {label}")
 
-    def write_to_file(self, filename='output.asm'):
-        with open(filename, 'w') as f:
-            for line in self.target_code:
-                f.write(line + '\n')
-class CodeGenerator:
-    def __init__(self):
-        self.instructions = []
+    def handle_label(self, instruction):
+        self.code.append(f"# {instruction}")
 
-    def generate(self, intermediate_code):
-        print("Generated code:")
-        for instruction in intermediate_code:
-            print(instruction)
-        return self.instructions
+    def indent(self):
+        return "    " * self.indentation

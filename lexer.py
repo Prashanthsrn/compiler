@@ -1,40 +1,112 @@
-import re
+from Error import Error
 
-# Token specification
-TOKENS = [
-    ('NUMBER', r'\d+(\.\d*)?'),  
-    ('ID', r'[A-Za-z]+'),  
-    ('IF', r'\bif\b'),  
-    ('ELSE', r'\belse\b'),  
-    ('EQ', r'=='),  
-    ('ASSIGN', r'='),  
-    ('OP', r'[+\-*/]'),  
-    ('LPAREN', r'\('),  
-    ('RPAREN', r'\)'),  
-    ('LBRACE', r'\{'),  
-    ('RBRACE', r'\}'), 
-    ('SEMICOLON', r';'),  
-    ('WS', r'\s+'),  
-]
+class Token:
+    def __init__(self, type, value):
+        self.type = type
+        self.value = value
 
-# Lexical analyzer
-def lex(characters):
-    pos = 0
-    tokens = []
-    while pos < len(characters):
-        match = None
-        for token_spec in TOKENS:
-            pattern, regex = token_spec
-            regex = re.compile(regex)
-            match = regex.match(characters, pos)
-            if match:
-                text = match.group(0)
-                if pattern != 'WS':  # Ignore whitespace
-                    tokens.append((pattern, text))
-                pos = match.end(0)
-                break
-        if not match:
-            raise RuntimeError(f"Illegal character: {characters[pos]}")
-    return tokens
+class Lexer:
+    def __init__(self, text):
+        self.text = text
+        self.pos = 0
+        self.current_char = self.text[self.pos] if self.pos < len(self.text) else None
 
+    def advance(self):
+        self.pos += 1
+        self.current_char = self.text[self.pos] if self.pos < len(self.text) else None
 
+    def skip_whitespace(self):
+        while self.current_char is not None and self.current_char.isspace():
+            self.advance()
+
+    def get_next_token(self):
+        while self.current_char is not None:
+            if self.current_char.isspace():
+                self.skip_whitespace()
+                continue
+
+            if self.current_char.isalpha():
+                return self.identifier()
+
+            if self.current_char.isdigit():
+                return self.number()
+
+            if self.current_char == '+':
+                self.advance()
+                return Token('PLUS', '+')
+
+            if self.current_char == '-':
+                self.advance()
+                return Token('MINUS', '-')
+
+            if self.current_char == '*':
+                self.advance()
+                return Token('MULTIPLY', '*')
+
+            if self.current_char == '/':
+                self.advance()
+                return Token('DIVIDE', '/')
+
+            if self.current_char == '=':
+                self.advance()
+                if self.current_char == '=':
+                    self.advance()
+                    return Token('EQUALS', '==')
+                return Token('ASSIGN', '=')
+
+            if self.current_char == '<':
+                self.advance()
+                if self.current_char == '=':
+                    self.advance()
+                    return Token('LTE', '<=')
+                return Token('LT', '<')
+
+            if self.current_char == '>':
+                self.advance()
+                if self.current_char == '=':
+                    self.advance()
+                    return Token('GTE', '>=')
+                return Token('GT', '>')
+
+            if self.current_char == '{':
+                self.advance()
+                return Token('LBRACE', '{')
+
+            if self.current_char == '}':
+                self.advance()
+                return Token('RBRACE', '}')
+
+            raise Error(f"Invalid character: {self.current_char}")
+
+        return Token('EOF', None)
+
+    def identifier(self):
+        result = ''
+        while self.current_char is not None and (self.current_char.isalnum() or self.current_char == '_'):
+            result += self.current_char
+            self.advance()
+
+        if result.lower() == 'if':
+            return Token('IF', result)
+        elif result.lower() == 'else':
+            return Token('ELSE', result)
+        else:
+            return Token('ID', result)
+
+    def number(self):
+        result = ''
+        while self.current_char is not None and self.current_char.isdigit():
+            result += self.current_char
+            self.advance()
+
+        if self.current_char == '.':
+            result += self.current_char
+            self.advance()
+
+            while self.current_char is not None and self.current_char.isdigit():
+                result += self.current_char
+                self.advance()
+
+            return Token('FLOAT', float(result))
+
+        return Token('INTEGER', int(result))

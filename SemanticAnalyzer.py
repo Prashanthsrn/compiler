@@ -1,34 +1,63 @@
+from Error import Error
+
+class Symbol:
+    def __init__(self, name, type=None):
+        self.name = name
+        self.type = type
+
+class SymbolTable:
+    def __init__(self):
+        self.symbols = {}
+
+    def define(self, symbol):
+        self.symbols[symbol.name] = symbol
+
+    def lookup(self, name):
+        return self.symbols.get(name)
+
 class SemanticAnalyzer:
-    def __init__(self, ast):
-        self.ast = ast
-        self.symbol_table = {}
+    def __init__(self):
+        self.symbol_table = SymbolTable()
 
-    def analyze(self):
-        for statement in self.ast:
-            if statement[0] == "ASSIGNMENT":
-                _, var_name, value = statement
-                if var_name[1] in self.symbol_table:
-                    raise Exception(f"Variable {var_name[1]} already declared")
-                self.symbol_table[var_name[1]] = value[1]
-            elif statement[0] == "IF_ELSE":
-                self.analyze_if_else(statement)
+    def visit(self, node):
+        method_name = f'visit_{type(node).__name__}'
+        visitor = getattr(self, method_name, self.generic_visit)
+        return visitor(node)
 
-    def analyze_if_else(self, statement):
-        _, condition, if_block, else_block = statement
-        # Ensure the condition uses declared variables
-        if condition[1] not in self.symbol_table:
-            raise Exception(f"Variable {condition[1]} in condition not declared")
+    def generic_visit(self, node):
+        raise Error(f"No visit_{type(node).__name__} method")
 
-        # Analyze statements inside the if block
-        for stmt in if_block:
-            self.analyze_statement(stmt)
+    def visit_BinOp(self, node):
+        self.visit(node.left)
+        self.visit(node.right)
 
-        # Analyze statements inside the else block (if present)
-        if else_block:
-            for stmt in else_block:
-                self.analyze_statement(stmt)
+    def visit_UnaryOp(self, node):
+        self.visit(node.expr)
 
-    def analyze_statement(self, statement):
-        if statement[0] == "ASSIGNMENT":
-            _, var_name, value = statement
-            self.symbol_table[var_name[1]] = value[1]
+    def visit_Num(self, node):
+        pass
+
+    def visit_Var(self, node):
+        var_name = node.value
+        var_symbol = self.symbol_table.lookup(var_name)
+        if var_symbol is None:
+            raise Error(f"Variable '{var_name}' is not defined")
+
+    def visit_Assign(self, node):
+        var_name = node.left.value
+        self.visit(node.right)
+        var_symbol = Symbol(var_name)
+        self.symbol_table.define(var_symbol)
+
+    def visit_Compound(self, node):
+        for child in node.children:
+            self.visit(child)
+
+    def visit_IfElse(self, node):
+        self.visit(node.condition)
+        self.visit(node.if_body)
+        if node.else_body:
+            self.visit(node.else_body)
+
+    def analyze(self, node):
+        self.visit(node)

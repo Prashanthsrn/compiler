@@ -1,0 +1,9 @@
+x = 10
+y = 5
+if x > y {
+    result = x - y
+}   
+else {
+    result = y - x
+}
+    

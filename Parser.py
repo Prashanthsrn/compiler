@@ -1,59 +1,170 @@
+from Error import Error
+
+class AST:
+    pass
+
+class BinOp(AST):
+    def __init__(self, left, op, right):
+        self.left = left
+        self.op = op
+        self.right = right
+
+class UnaryOp(AST):
+    def __init__(self, op, expr):
+        self.op = op
+        self.expr = expr
+
+class Num(AST):
+    def __init__(self, token):
+        self.token = token
+        self.value = token.value
+
+class Var(AST):
+    def __init__(self, token):
+        self.token = token
+        self.value = token.value
+
+class Assign(AST):
+    def __init__(self, left, op, right):
+        self.left = left
+        self.op = op
+        self.right = right
+
+class Compound(AST):
+    def __init__(self):
+        self.children = []
+
+class IfElse(AST):
+    def __init__(self, condition, if_body, else_body=None):
+        self.condition = condition
+        self.if_body = if_body
+        self.else_body = else_body
+
 class Parser:
-    def __init__(self, tokens):
-        self.tokens = tokens
-        self.pos = 0
+    def __init__(self, lexer):
+        self.lexer = lexer
+        self.current_token = self.lexer.get_next_token()
+
+    def error(self, message):
+        raise Error(message)
 
     def eat(self, token_type):
-        if self.pos < len(self.tokens) and self.tokens[self.pos][0] == token_type:
-            self.pos += 1
+        if self.current_token.type == token_type:
+            self.current_token = self.lexer.get_next_token()
         else:
-            raise SyntaxError(f"Expected {token_type} at {self.pos}")
+            self.error(f"Expected {token_type}, but got {self.current_token.type}")
 
-    def factor(self):
-        token = self.tokens[self.pos]
-        if token[0] == 'NUMBER':
-            self.eat('NUMBER')
-            return ('number', token[1])
-        elif token[0] == 'ID':
-            self.eat('ID')
-            return ('id', token[1])
-        elif token[0] == 'LPAREN':
-            self.eat('LPAREN')
-            expr = self.expression()
-            self.eat('RPAREN')
-            return expr
-        else:
-            raise SyntaxError(f"Unexpected token: {token}")
-
-    def term(self):
-        node = self.factor()
-        while self.pos < len(self.tokens) and self.tokens[self.pos][0] == 'OP':
-            op = self.tokens[self.pos]
-            self.eat('OP')
-            node = ('binop', node, op[1], self.factor())
+    def program(self):
+        node = self.compound_statement()
         return node
 
-    def expression(self):
-        return self.term()
+    def compound_statement(self):
+        nodes = self.statement_list()
+        root = Compound()
+        for node in nodes:
+            root.children.append(node)
+        return root
+
+    def statement_list(self):
+        node = self.statement()
+        results = [node]
+        while self.current_token.type != 'EOF' and self.current_token.type != 'RBRACE':
+            results.append(self.statement())
+        return results
+
+    def statement(self):
+        if self.current_token.type == 'ID':
+            node = self.assignment_statement()
+        elif self.current_token.type == 'IF':
+            node = self.if_statement()
+        else:
+            node = self.expr()
+        return node
+
+    def assignment_statement(self):
+        left = self.variable()
+        token = self.current_token
+        self.eat('ASSIGN')
+        right = self.expr()
+        node = Assign(left, token, right)
+        return node
 
     def if_statement(self):
         self.eat('IF')
-        self.eat('LPAREN')
-        condition = self.expression()
-        self.eat('RPAREN')
+        condition = self.expr()
         self.eat('LBRACE')
-        if_true = self.expression()
+        if_body = self.compound_statement()
         self.eat('RBRACE')
-        self.eat('ELSE')
-        self.eat('LBRACE')
-        if_false = self.expression()
-        self.eat('RBRACE')
-        return ('if', condition, if_true, if_false)
+        
+        if self.current_token.type == 'ELSE':
+            self.eat('ELSE')
+            self.eat('LBRACE')
+            else_body = self.compound_statement()
+            self.eat('RBRACE')
+        else:
+            else_body = None
+        
+        return IfElse(condition, if_body, else_body)
+
+    def variable(self):
+        node = Var(self.current_token)
+        self.eat('ID')
+        return node
+
+    def expr(self):
+        node = self.arithmetic_expr()
+        if self.current_token.type in ('LT', 'GT', 'LTE', 'GTE', 'EQUALS'):
+            token = self.current_token
+            self.eat(self.current_token.type)
+            node = BinOp(left=node, op=token, right=self.arithmetic_expr())
+        return node
+
+    def arithmetic_expr(self):
+        node = self.term()
+        while self.current_token.type in ('PLUS', 'MINUS'):
+            token = self.current_token
+            if token.type == 'PLUS':
+                self.eat('PLUS')
+            elif token.type == 'MINUS':
+                self.eat('MINUS')
+            node = BinOp(left=node, op=token, right=self.term())
+        return node
+
+    def term(self):
+        node = self.factor()
+        while self.current_token.type in ('MULTIPLY', 'DIVIDE'):
+            token = self.current_token
+            if token.type == 'MULTIPLY':
+                self.eat('MULTIPLY')
+            elif token.type == 'DIVIDE':
+                self.eat('DIVIDE')
+            node = BinOp(left=node, op=token, right=self.factor())
+        return node
+
+    def factor(self):
+        token = self.current_token
+        if token.type == 'PLUS':
+            self.eat('PLUS')
+            node = UnaryOp(token, self.factor())
+            return node
+        elif token.type == 'MINUS':
+            self.eat('MINUS')
+            node = UnaryOp(token, self.factor())
+            return node
+        elif token.type == 'INTEGER':
+            self.eat('INTEGER')
+            return Num(token)
+        elif token.type == 'FLOAT':
+            self.eat('FLOAT')
+            return Num(token)
+        elif token.type == 'LPAREN':
+            self.eat('LPAREN')
+            node = self.expr()
+            self.eat('RPAREN')
+            return node
+        else:
+            node = self.variable()
+            return node
 
     def parse(self):
-        return self.if_statement()
-
-# # Example input tokens
-# parser = Parser(tokens)
-# ast = parser.parse()
-# print(ast)
+        return self.program()

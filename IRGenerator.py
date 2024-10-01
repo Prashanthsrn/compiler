@@ -1,47 +1,70 @@
 class IRGenerator:
-    def __init__(self, ast):
-        self.ast = ast
-        self.ir_code = []
-        self.label_count = 0
+    def __init__(self):
+        self.instructions = []
+        self.temp_counter = 0
+
+    def visit(self, node):
+        method_name = f'visit_{type(node).__name__}'
+        visitor = getattr(self, method_name, self.generic_visit)
+        return visitor(node)
+
+    def generic_visit(self, node):
+        raise Exception(f"No visit_{type(node).__name__} method")
+
+    def visit_BinOp(self, node):
+        left = self.visit(node.left)
+        right = self.visit(node.right)
+        temp = self.new_temp()
+        op = node.op.type.lower()
+        self.emit(f"{temp} = {left} {op} {right}")
+        return temp
+
+    def visit_UnaryOp(self, node):
+        expr = self.visit(node.expr)
+        temp = self.new_temp()
+        op = node.op.type.lower()
+        self.emit(f"{temp} = {op}{expr}")
+        return temp
+
+    def visit_Num(self, node):
+        return str(node.value)
+
+    def visit_Var(self, node):
+        return node.value
+
+    def visit_Assign(self, node):
+        var_name = node.left.value
+        right = self.visit(node.right)
+        self.emit(f"{var_name} = {right}")
+
+    def visit_Compound(self, node):
+        for child in node.children:
+            self.visit(child)
+
+    def visit_IfElse(self, node):
+        condition = self.visit(node.condition)
+        label_else = self.new_label()
+        label_end = self.new_label()
+
+        self.emit(f"if not {condition} goto {label_else}")
+        self.visit(node.if_body)
+        self.emit(f"goto {label_end}")
+        self.emit(f"{label_else}:")
+        if node.else_body:
+            self.visit(node.else_body)
+        self.emit(f"{label_end}:")
+
+    def new_temp(self):
+        self.temp_counter += 1
+        return f"t{self.temp_counter}"
 
     def new_label(self):
-        self.label_count += 1
-        return f"L{self.label_count}"
+        self.temp_counter += 1
+        return f"L{self.temp_counter}"
 
-    def generate_ir(self):
-        for statement in self.ast:
-            if statement[0] == "IF_ELSE":
-                self.generate_if_else(statement)
-            elif statement[0] == "ASSIGNMENT":
-                self.generate_assignment(statement)
-        return self.ir_code
+    def emit(self, instruction):
+        self.instructions.append(instruction)
 
-    def generate_if_else(self, statement):
-        _, condition, if_block, else_block = statement
-        false_label = self.new_label()
-        end_label = self.new_label()
-
-        # IR for condition check and jump if false
-        self.ir_code.append(f"IF_FALSE {condition[1][1]} {condition[2][1]} GOTO {false_label}")
-
-        # IR for the if block
-        for stmt in if_block:
-            self.generate_assignment(stmt)
-
-        # Jump to the end after executing the if block
-        self.ir_code.append(f"GOTO {end_label}")
-
-        # Else block, if present
-        self.ir_code.append(f"{false_label}:")
-        if else_block:
-            for stmt in else_block:
-                self.generate_assignment(stmt)
-
-        # End of if-else statement
-        self.ir_code.append(f"{end_label}:")
-
-    def generate_assignment(self, statement):
-        _, var_name, value = statement
-        # IR for assignment
-        self.ir_code.append(f"{var_name[1]} = {value[1]}")
-
+    def generate(self, node):
+        self.visit(node)
+        return self.instructions
